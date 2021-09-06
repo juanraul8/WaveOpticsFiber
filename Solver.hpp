@@ -26,9 +26,7 @@ extern const std::complex<double> cunit;
 class Solver{
 protected:
   // Scatter parameters
-  double radius;      // radius of cylinder or for an arbitrary 2d object: longest distance to the center
-  double radius2;     // short axis radius for ellipse
-  std::vector<Eigen::Vector3d> centers;   // vector or centers
+  double radius;                          // radius of an arbitrary 2d object: longest distance to the center
   std::vector<Eigen::Vector3d> nodes;     // Vector of nodes
   std::vector<Element> el;                // Vector of elements
   std::vector<Basis> ba;                  // Vector of basis
@@ -36,13 +34,12 @@ protected:
   std::vector<double> xvec;
   std::vector<double> weights;
   char mode;
-  char type;
   double angle;
 
 public:
   Wave w;
   int Nscatter;       // number of scatters;
-  int numel;          // number of elements/ling segments for circle discretization
+  int numel;          // number of elements/ling segments for object discretization
   int quadrature;     // number of quadrature points for each line segment
   Eigen::MatrixXd f,g, f_in, g_in;
   Background b;
@@ -51,10 +48,6 @@ public:
   Eigen::MatrixXcd Z;
 
   Solver(){};
-
-  // Constructor for elliptical cross-section
-  Solver(int numel, double radius, double radius2, int quadrature,
-         double phi_i, char mode, double freq, double mur, std::complex<double> epsr, double angle);
 
   // Constructor for arbitrary cross-sectional shape
   Solver(std::vector<Eigen::Vector3d> nodes, int quadrature, double phi_i, char mode, double freq, double mur, std::complex<double> epsr, double angle);

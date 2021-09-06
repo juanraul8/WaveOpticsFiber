@@ -66,39 +66,6 @@ void postprocess(bool lossless, Eigen::VectorXf& sigma, double energy, int phion
   cdf(vectindex+phionum-1) = 1;
 }
 
-std::vector<Eigen::Vector3d> readgeometry(std::string xfile, std::string yfile){
-  std::string line;
-  std::ifstream myfile (xfile);
-  std::vector<double> xvec;
-  std::vector<double> yvec;
-  if (myfile.is_open())
-    {
-      while ( getline (myfile,line) )
-        {
-          xvec.push_back(std::stod(line));
-        }
-      myfile.close();
-    }
-
-  std::ifstream myfile2 (yfile);
-  if (myfile2.is_open())
-    {
-      while ( getline (myfile2,line) )
-        {
-          yvec.push_back(std::stod(line));
-        }
-      myfile2.close();
-    }
-  else std::cout << "Unable to open file";
-
-  std::vector<Eigen::Vector3d> nodes(xvec.size());
-  for (int i = 0; i < xvec.size(); ++i){
-    nodes[i] = Eigen::Vector3d{xvec[i], yvec[i], 0};
-  }
-
-  return nodes;
-}
-
 //New read 2D geometry function
 std::vector<Eigen::Vector3d> readgeometry(std::string file){
   std::string line;
@@ -139,118 +106,64 @@ int main(int argc, const char * argv[]) {
   std::string output = example+"/";
   std::cout<<"output directory "<<output<<std::endl;
 
-  std::stringstream ellipsestr(argv[2]);
-  bool ellipse;
-  ellipsestr >> ellipse;
-
-  double radius1, radius2, etare, etaim;
+  
+  double radius, etare, etaim;
   int numel, phiinum, phionum, thetanum, lambdanum;
   std::vector<double> nval, kval;
   std::string filename, filename2, filename3;
   std::vector<Eigen::Vector3d> nodes;
   bool lossless = true;
-  if (ellipse){
+  
+  std::cout<<"------Simulating arbitrary cross-section------"<<std::endl;
 
-    std::cout<<"------Simulating an elliptical cross-section------"<<std::endl;
+  //Read geometry
+  std::string cross_file = argv[2]; // filename of object's coordinates 
+  std::cout<<"cross coords file: " << cross_file << std::endl;
+  nodes = readgeometry(cross_file); // create nodes using the input file
 
-    std::string radius1str = argv[3]; // semi-major radius, in micron
-    std::string::size_type sz;     // alias of size_t
-    radius1 = std::stof (radius1str,&sz);
-
-    std::string radius2str = argv[4]; // semi-minor radius, in micron
-    radius2 = std::stof (radius2str,&sz);
-    std::cout<<"radius1 "<<radius1<<"um radius2 "<<radius2<<"um"<<std::endl;
-    radius1 *= 1e-6;
-    radius2 *= 1e-6;
-
-    std::stringstream elstr(argv[5]); // number of elements for the boundary of the cross-section
-    elstr >> numel;
-    std::cout<<"number of elements "<<numel<<std::endl;
-
-    std::stringstream phionumstr(argv[6]); // number of outgoing phi directions
-    phionumstr >> phionum;
-    if (radius1==radius2){
-      phiinum = 1;
-    }else{
-      phiinum = (int) phionum / 4;
-    }
-    std::stringstream thetanumstr(argv[7]); // number of theta directions
-    thetanumstr >> thetanum;
-    std::cout<<"phiinum "<<phiinum<<" phionum "<<phionum<<" thetanum "<<thetanum<<std::endl;
-
-    std::stringstream lambdanumstr(argv[8]); // number of wavelength
-    lambdanumstr >> lambdanum;
-    std::cout<<"lambdanum "<<lambdanum<<std::endl;
-
-    std::stringstream etarestr(argv[9]); // index of refraction of the fiber (real part)
-    etarestr >> etare;
-
-    std::stringstream etaimstr(argv[10]); // index of refraction of the fiber (imaginary part)
-    etaimstr >> etaim;
-    std::cout<<"etare "<<etare<<" etaim "<<etaim<<std::endl;
-
-    if (etaim!=0)
-      lossless = false;
-
-  }else{
-
-    std::cout<<"------Simulating a non-elliptical cross-section------"<<std::endl;
-
-    //Read geometry (original code)
-    /*std::string xfile = argv[3]; // filename of x coordinates of nodes 
-    std::string yfile = argv[4]; // filename of y coordinates of nodes
-    std::cout<<"x coord file: "<<xfile<<"; y coord file: "<<yfile<<std::endl;
-    nodes = readgeometry(xfile, yfile); // create nodes using the input files*/
-
-    //Read geometry
-    std::string cross_file = argv[3]; // filename of x coordinates of nodes 
-    std::cout<<"cross coords file: " << cross_file << std::endl;
-    nodes = readgeometry(cross_file); // create nodes using the input files*
-
-    radius1 = -1; // setting the inital to be a negative number
-    for (int i = 0; i < nodes.size(); ++i){
-      double curradius = nodes[i].norm();
-      if (radius1 < curradius)
-        radius1 = curradius;
-    }
-    std::cout<<"radius "<<radius1<<std::endl;
-    std::cout<<"number of elements "<<nodes.size()<<std::endl;
-
-    std::stringstream phionumstr(argv[4]); // number of outgoing phi directions
-    phionumstr >> phionum;
-    phiinum = phionum;
-
-    std::stringstream thetanumstr(argv[5]); // number of theta directions
-    thetanumstr >> thetanum;
-    std::cout<<"phiinum "<<phiinum<<" phionum "<<phionum<<" thetanum "<<thetanum<<std::endl;
-
-    std::stringstream lambdanumstr(argv[6]); // number of wavelength
-    lambdanumstr >> lambdanum;
-    std::cout<<"lambdanum "<<lambdanum<<std::endl;
-
-    std::stringstream etarestr(argv[7]); // index of refraction of the fiber (real part)
-    etarestr >> etare;
-
-    //Wavelength dependent imaginary part of the IOR
-    /*std::string iorfile = argv[8];
-    kval.resize(lambdanum);
-    readiorimag(kval, lambdanum, iorfile);*/
-
-    /*for (auto im_ior: kval) {
-      std::cout << im_ior << std::endl;
-    }
-
-    lossless = false;*/
-
-    //Constant IOR
-    std::stringstream etaimstr(argv[8]); // index of refraction of the fiber (imaginary part)
-    etaimstr >> etaim;
-    
-    std::cout<<"etare "<<etare<<" etaim "<<etaim<<std::endl;
-
-    if (etaim!=0)
-      lossless = false;
+  radius = -1; // setting the inital to be a negative number
+  for (int i = 0; i < nodes.size(); ++i){
+    double curradius = nodes[i].norm();
+    if (radius < curradius)
+      radius = curradius;
   }
+  std::cout<<"radius "<<radius<<std::endl;
+  std::cout<<"number of elements "<<nodes.size()<<std::endl;
+
+  std::stringstream phionumstr(argv[3]); // number of outgoing phi directions
+  phionumstr >> phionum;
+  phiinum = phionum;
+
+  std::stringstream thetanumstr(argv[4]); // number of theta directions
+  thetanumstr >> thetanum;
+  std::cout<<"phiinum "<<phiinum<<" phionum "<<phionum<<" thetanum "<<thetanum<<std::endl;
+
+  std::stringstream lambdanumstr(argv[5]); // number of wavelength
+  lambdanumstr >> lambdanum;
+  std::cout<<"lambdanum "<<lambdanum<<std::endl;
+
+  std::stringstream etarestr(argv[6]); // index of refraction of the fiber (real part)
+  etarestr >> etare;
+
+  //Wavelength dependent imaginary part of the IOR
+  /*std::string iorfile = argv[8];
+  kval.resize(lambdanum);
+  readiorimag(kval, lambdanum, iorfile);*/
+
+  /*for (auto im_ior: kval) {
+    std::cout << im_ior << std::endl;
+  }
+
+  lossless = false;*/
+
+  //Constant IOR
+  std::stringstream etaimstr(argv[7]); // index of refraction of the fiber (imaginary part)
+  etaimstr >> etaim;
+  
+  std::cout<<"etare "<<etare<<" etaim "<<etaim<<std::endl;
+
+  if (etaim!=0)
+    lossless = false;
 
   // wavelength parameter
   int lambdastart = 400;
@@ -276,7 +189,7 @@ int main(int argc, const char * argv[]) {
 
   int quadrature = 2;
   double mur = 1.0;
-  double Dis = 1000*radius1;
+  double Dis = 1000*radius;
   char mode = 'M';
   double freq;
   std::complex<double> eta, epsr;
@@ -300,11 +213,11 @@ int main(int argc, const char * argv[]) {
 
   //ProfilerStart("simulation_profile.log");
 
-  // index of refraction calculation (global)
   char dir_array[output.length()];
   strcpy(dir_array, output.c_str());
   mkdir(dir_array, 0777);
-  
+
+  // index of refraction calculation (global)  
   eta = etare - etaim * cunit;
   epsr = eta * eta;
 
@@ -312,12 +225,9 @@ int main(int argc, const char * argv[]) {
     std::cout<<"lambdaindex "<<i<<std::endl;
     double lambda = (lambdastart + (double)(lambdaend-lambdastart)/(double)lambdanum * i)*1e-9;
 
-    // index of refraction calculation
-    /*if (ellipse)
-      eta = etare - etaim * cunit;
-    else
-      eta = 1.55 - kval[i] * cunit;
-    epsr = eta * eta;*/
+    // Wavelength dependent imaginary part of the IOR
+    //eta = etare - kval[i] * cunit;
+    //epsr = eta * eta;
 
     freq = 299792458.0/double(lambda);
     MoM_ob m1;
@@ -328,23 +238,12 @@ int main(int argc, const char * argv[]) {
     for (int j = 0 ; j < thetanum; ++j){
       theta = M_PI / 2 - M_PI / 2 * (double) j / (double) thetanum;
 
-      if (ellipse)
-        m1 = MoM_ob(numel, radius1, radius2, quadrature, 0, mode, freq, mur, epsr, theta);
-      else
-        m1 = MoM_ob(nodes, quadrature, 0, mode, freq, mur, epsr, theta);
+      m1 = MoM_ob(nodes, quadrature, 0, mode, freq, mur, epsr, theta);
 
       m1.assembly();
       luvar.compute(m1.Z);
       for (int k = 0; k < phiinum; ++k){
         
-        /*double phi_i;
-        if (phiinum==360)
-          phi_i = (double) k / (double) phiinum * M_PI * 2;
-        else if (phiinum==90)
-          phi_i = (double) k / (double) phiinum * M_PI / 2;
-        else
-          phi_i = 0;*/
-
         double phi_i = (double) k / (double) phiinum * M_PI * 2;
 
         Eigen::VectorXf sigma1(phionum), sigma2(phionum);
@@ -369,7 +268,6 @@ int main(int argc, const char * argv[]) {
           energy2 = 0;
         else
           energy2 = m1.energy();
-
         
         //std::cout<<"lossless: "<<lossless<<std::endl;
 
@@ -389,6 +287,7 @@ int main(int argc, const char * argv[]) {
         postprocess(lossless, sigma, energy, phionum, vectindex, unit, vect, pdf, cdf);
       }
     }
+
     // write scattering distribution, pdf, cdf to disk
     filename = output + "TEM_"+std::to_string(i)+".binary";
     std::ofstream out(filename, std::ios::out|std::ios::binary|std::ios_base::app);

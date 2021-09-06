@@ -17,39 +17,16 @@ extern double dhankelim[TABLE_SIZE];
 const std::complex<double> cunit(0,1);
 namespace sp = sp_bessel;
 
-// ellipse, radius is longer axis, radius2 is shorter axis
-Solver::Solver(int numel, double radius, double radius2, int quadrature, double phi_i, char mode,
-               double freq, double mur, std::complex<double> epsr, double angle){
-    this->type = 'e';
-    this->Nscatter = 1;
-    this->numel = numel;
-    this->radius = radius;
-    this->radius2 = radius2;
-    this->centers.push_back(Eigen::Vector3d(0,0,0));
-    CreateNodes();
-
-    this->angle = angle;
-    this->quadrature = quadrature;
-    NumericPar();
-    CreateBasis();
-    CommonParameter(mode, mur, epsr, phi_i, freq, numel, angle);
-
-    vvec = Eigen::VectorXcd::Zero(4*numel);
-    this->Z = Eigen::MatrixXcd::Zero(4*numel, 4*numel);
-}
-
 // Arbitrary geometry
 Solver::Solver(std::vector<Eigen::Vector3d> nodes, int quadrature, double phi_i, char mode,
                double freq, double mur, std::complex<double> epsr, double angle){
-    this->type = 'e'; // set type to ellipse for now
+
     this->Nscatter = 1;
     this->numel = nodes.size();
     assert(numel>0  && "Invalid nodes input!");
-    this->centers.push_back(Eigen::Vector3d(0,0,0));
+    
     this->nodes = nodes;
-    // assume center is origin find the longest distance and set it as radius.
     this->radius = CalculateR();
-    this->radius2 = radius;
 
     this->angle = angle;
     this->quadrature = quadrature;
@@ -61,6 +38,7 @@ Solver::Solver(std::vector<Eigen::Vector3d> nodes, int quadrature, double phi_i,
     this->Z = Eigen::MatrixXcd::Zero(4*numel, 4*numel);
 }
 
+// Assume center is the origin and find the longest distance.
 double Solver::CalculateR(){
     double r = nodes[0].norm();
     for (int i=1; i<numel; ++i){
@@ -69,27 +47,6 @@ double Solver::CalculateR(){
         }
     }
     return r;
-}
-
-void Solver::CreateNodes(){
-    
-    std::cout << "Radius 1: " << radius << std::endl;
-    std::cout << "Radius 2: " << radius2 << std::endl;
-    std::cout << "N: " << this->numel << std::endl;
-
-    int numel1 = this->numel;
-    int n = this->Nscatter;
-    // ellipse
-    // circle cross section
-    // Create Nodes
-    double unit = 2*M_PI/numel1;
-    this->nodes = std::vector<Eigen::Vector3d>(numel1*n);
-    for (int i=0; i<n; ++i){
-      Eigen::Vector3d c = centers[i];
-      for (int j =0; j < numel1; ++j){
-        this->nodes[i*numel1+j] = Eigen::Vector3d(c(0)+radius*cos(j*unit),c(1)+radius2*sin(j*unit),0);
-      }
-    }
 }
 
 void Solver::NumericPar(){
