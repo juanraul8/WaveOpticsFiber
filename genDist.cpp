@@ -27,6 +27,9 @@
 #include <sys/types.h>
 #include <bits/stdc++.h>
 
+//Profiling
+//#include <gperftools/profiler.h>
+
 double hankelre[TABLE_SIZE];
 double hankelim[TABLE_SIZE];
 double dhankelre[TABLE_SIZE];
@@ -47,6 +50,10 @@ void postprocess(bool lossless, Eigen::VectorXf& sigma, double energy, int phion
     sigma *= expected / (sigma.sum() * unit);
     vect.segment(vectindex, phionum) = sigma;
     float normalization = sigma.sum() * unit;
+
+    //std::cout << "Sigma total: " <<  sigma.sum() << std::endl;
+    //std::cout << "Unit: " <<  unit << std::endl;
+    //std::cout << "Normalization: " <<  normalization << std::endl;
 
     if (std::abs(normalization)<1e-6)
       pdf.segment(vectindex, phionum).array() = (float) (1.0 / (2 * M_PI));
@@ -87,6 +94,35 @@ std::vector<Eigen::Vector3d> readgeometry(std::string xfile, std::string yfile){
   std::vector<Eigen::Vector3d> nodes(xvec.size());
   for (int i = 0; i < xvec.size(); ++i){
     nodes[i] = Eigen::Vector3d{xvec[i], yvec[i], 0};
+  }
+
+  return nodes;
+}
+
+//New read 2D geometry function
+std::vector<Eigen::Vector3d> readgeometry(std::string file){
+  std::string line;
+  std::ifstream myfile (file);
+
+  std::vector<Eigen::Vector3d> nodes;
+
+  if (myfile.is_open()){
+
+    while ( getline (myfile,line) ){
+
+      double x, y;
+      std::stringstream stream_file(line);
+
+      stream_file >> x;
+      stream_file >> y;
+
+      nodes.push_back(Eigen::Vector3d{x, y, 0});
+    }
+    
+    myfile.close();
+  }
+  else{
+    std::cout << "Unable to open file";
   }
 
   return nodes;
@@ -160,10 +196,16 @@ int main(int argc, const char * argv[]) {
 
     std::cout<<"------Simulating a non-elliptical cross-section------"<<std::endl;
 
-    std::string xfile = argv[3]; // filename of x coordinates of nodes 
+    //Read geometry (original code)
+    /*std::string xfile = argv[3]; // filename of x coordinates of nodes 
     std::string yfile = argv[4]; // filename of y coordinates of nodes
     std::cout<<"x coord file: "<<xfile<<"; y coord file: "<<yfile<<std::endl;
-    nodes = readgeometry(xfile, yfile); // create nodes using the input files
+    nodes = readgeometry(xfile, yfile); // create nodes using the input files*/
+
+    //Read geometry
+    std::string cross_file = argv[3]; // filename of x coordinates of nodes 
+    std::cout<<"cross coords file: " << cross_file << std::endl;
+    nodes = readgeometry(cross_file); // create nodes using the input files*
 
     radius1 = -1; // setting the inital to be a negative number
     for (int i = 0; i < nodes.size(); ++i){
@@ -174,26 +216,40 @@ int main(int argc, const char * argv[]) {
     std::cout<<"radius "<<radius1<<std::endl;
     std::cout<<"number of elements "<<nodes.size()<<std::endl;
 
-    std::stringstream phionumstr(argv[5]); // number of outgoing phi directions
+    std::stringstream phionumstr(argv[4]); // number of outgoing phi directions
     phionumstr >> phionum;
     phiinum = phionum;
 
-    std::stringstream thetanumstr(argv[6]); // number of theta directions
+    std::stringstream thetanumstr(argv[5]); // number of theta directions
     thetanumstr >> thetanum;
     std::cout<<"phiinum "<<phiinum<<" phionum "<<phionum<<" thetanum "<<thetanum<<std::endl;
 
-    std::stringstream lambdanumstr(argv[7]); // number of wavelength
+    std::stringstream lambdanumstr(argv[6]); // number of wavelength
     lambdanumstr >> lambdanum;
     std::cout<<"lambdanum "<<lambdanum<<std::endl;
 
-    std::stringstream etarestr(argv[8]); // index of refraction of the fiber (real part)
+    std::stringstream etarestr(argv[7]); // index of refraction of the fiber (real part)
     etarestr >> etare;
 
-    std::string iorfile = argv[9];
+    //Wavelength dependent imaginary part of the IOR
+    /*std::string iorfile = argv[8];
     kval.resize(lambdanum);
-    readiorimag(kval, lambdanum, iorfile); // read in wavelength dependent imaginary part of ior
+    readiorimag(kval, lambdanum, iorfile);*/
 
-    lossless = false;
+    /*for (auto im_ior: kval) {
+      std::cout << im_ior << std::endl;
+    }
+
+    lossless = false;*/
+
+    //Constant IOR
+    std::stringstream etaimstr(argv[8]); // index of refraction of the fiber (imaginary part)
+    etaimstr >> etaim;
+    
+    std::cout<<"etare "<<etare<<" etaim "<<etaim<<std::endl;
+
+    if (etaim!=0)
+      lossless = false;
   }
 
   // wavelength parameter
@@ -242,24 +298,32 @@ int main(int argc, const char * argv[]) {
   double energy;
   float cs;
 
+  //ProfilerStart("simulation_profile.log");
+
+  // index of refraction calculation (global)
   char dir_array[output.length()];
   strcpy(dir_array, output.c_str());
   mkdir(dir_array, 0777);
+  
+  eta = etare - etaim * cunit;
+  epsr = eta * eta;
+
   for (int i = 0; i < lambdanum; ++i){
     std::cout<<"lambdaindex "<<i<<std::endl;
     double lambda = (lambdastart + (double)(lambdaend-lambdastart)/(double)lambdanum * i)*1e-9;
 
     // index of refraction calculation
-    if (ellipse)
+    /*if (ellipse)
       eta = etare - etaim * cunit;
     else
       eta = 1.55 - kval[i] * cunit;
-    epsr = eta * eta;
+    epsr = eta * eta;*/
 
     freq = 299792458.0/double(lambda);
     MoM_ob m1;
     double theta;
     Eigen::PartialPivLU<Eigen::MatrixXcd> luvar;
+    
     #pragma omp parallel for private (m1, theta, luvar)
     for (int j = 0 ; j < thetanum; ++j){
       theta = M_PI / 2 - M_PI / 2 * (double) j / (double) thetanum;
@@ -272,19 +336,25 @@ int main(int argc, const char * argv[]) {
       m1.assembly();
       luvar.compute(m1.Z);
       for (int k = 0; k < phiinum; ++k){
-        double phi_i;
+        
+        /*double phi_i;
         if (phiinum==360)
           phi_i = (double) k / (double) phiinum * M_PI * 2;
         else if (phiinum==90)
           phi_i = (double) k / (double) phiinum * M_PI / 2;
         else
-          phi_i = 0;
+          phi_i = 0;*/
+
+        double phi_i = (double) k / (double) phiinum * M_PI * 2;
+
+        Eigen::VectorXf sigma1(phionum), sigma2(phionum);
+        double energy1, energy2;
+
         m1.updatewave(phi_i, 'M', freq, theta);
         m1.incident();
         m1.sol = luvar.solve(m1.vvec);
-        Eigen::VectorXf sigma1(phionum), sigma2(phionum);
         m1.BSDF(phionum, Dis, sigma1);
-        double energy1, energy2;
+        
         if (lossless)
           energy1 = 0;
         else
@@ -294,14 +364,23 @@ int main(int argc, const char * argv[]) {
         m1.incident();
         m1.sol = luvar.solve(m1.vvec);
         m1.BSDF(phionum, Dis, sigma2);
+        
         if (lossless)
           energy2 = 0;
         else
           energy2 = m1.energy();
 
+        
+        //std::cout<<"lossless: "<<lossless<<std::endl;
+
         sigma = (sigma1 + sigma2) * 0.5f;
+        //sigma = sigma2;
+
+
         cs = (float) sigma.sum() / phionum * 2.f * M_PI;
+        
         energy = (energy1 + energy2) / 2;
+        //energy = energy2;
 
         cstot(i*thetanum*phiinum + j*phiinum + k) = (float) (cs - energy);
 
@@ -323,6 +402,9 @@ int main(int argc, const char * argv[]) {
     std::ofstream out3(filename3, std::ios::out|std::ios::binary|std::ios_base::app);
     out3.write((char *) &cdf(0), sizeof(float)*nb_samples);
   }
+
+  //ProfilerStop();
+  
   // compute cross-section ratio and write to disc
   float bound = 6;
   float maxcs = std::min(bound, cstot.maxCoeff());
@@ -337,6 +419,7 @@ int main(int argc, const char * argv[]) {
       std::cout<<"ratio(i)<0, i "<<i<<" ratio(i) "<<ratio(i)<<std::endl;
     }
   }
+
   // output ratio
   filename = output + "ratio.binary";
   std::ofstream out(filename, std::ios::out|std::ios::binary|std::ios_base::app);

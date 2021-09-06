@@ -72,6 +72,11 @@ double Solver::CalculateR(){
 }
 
 void Solver::CreateNodes(){
+    
+    std::cout << "Radius 1: " << radius << std::endl;
+    std::cout << "Radius 2: " << radius2 << std::endl;
+    std::cout << "N: " << this->numel << std::endl;
+
     int numel1 = this->numel;
     int n = this->Nscatter;
     // ellipse
