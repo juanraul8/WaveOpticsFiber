@@ -221,9 +221,41 @@ int main(int argc, const char * argv[]) {
   eta = etare - etaim * cunit;
   epsr = eta * eta;
 
+  // wavelenght sampling: dense, random, sparse, etc
+  int lambda_idx = 0;
+
+  // dense sampling
+
+  /*std::vector<double> lambdas = std::vector<double>(lambdanum);
+  
   for (int i = 0; i < lambdanum; ++i){
-    std::cout<<"lambdaindex "<<i<<std::endl;
-    double lambda = (lambdastart + (double)(lambdaend-lambdastart)/(double)lambdanum * i)*1e-9;
+     //double lambda = (lambdastart + (double)(lambdaend - lambdastart)/(double)lambdanum * i) * 1e-9;
+     double lambda = (lambdastart + (double)(lambdaend - lambdastart)/(double)lambdanum * i);
+     lambdas[i] = lambda;
+  }*/
+
+  // sparse sampling --> user defined
+  /*lambdanum = 2;
+  std::vector<double> lambdas { 400, 700 };*/
+
+  // random sampling
+  srand (time(NULL));//initialize random seed using the current pc time
+  std::vector<double> lambdas = std::vector<double>(lambdanum);
+
+  for (int i = 0; i < lambdanum; ++i){
+     
+     double lambda  = rand() % (lambdaend - lambdastart) + lambdastart;
+     //lambda *= 1e-9; //Nano scale
+
+     lambdas[i] = lambda;
+  }
+
+
+  for (double lambda : lambdas) {
+
+    std::cout<<"lambda index: "<< lambda_idx << ", lambda: "<< lambda << " nm" << std::endl;
+
+    lambda *= 1e-9; //Nano scale
 
     // Wavelength dependent imaginary part of the IOR
     //eta = etare - kval[i] * cunit;
@@ -280,26 +312,30 @@ int main(int argc, const char * argv[]) {
         energy = (energy1 + energy2) / 2;
         //energy = energy2;
 
-        cstot(i*thetanum*phiinum + j*phiinum + k) = (float) (cs - energy);
+        cstot(lambda_idx*thetanum*phiinum + j*phiinum + k) = (float) (cs - energy);
 
         // process dist, cs, energy info for each wavelength and save to disk
         int vectindex = j*phiinum*phionum+k*phionum;
         postprocess(lossless, sigma, energy, phionum, vectindex, unit, vect, pdf, cdf);
+
       }
     }
 
     // write scattering distribution, pdf, cdf to disk
-    filename = output + "TEM_"+std::to_string(i)+".binary";
-    std::ofstream out(filename, std::ios::out|std::ios::binary|std::ios_base::app);
+    filename = output + "TEM_"+std::to_string(lambda_idx)+".binary";
+    std::ofstream out(filename, std::ios::out|std::ios::binary);
     out.write((char *) &vect(0), sizeof(float)*nb_samples);
 
-    filename2 = output + "TEM_"+std::to_string(i)+"_pdf.binary";
-    std::ofstream out2(filename2, std::ios::out|std::ios::binary|std::ios_base::app);
+    filename2 = output + "TEM_"+std::to_string(lambda_idx)+"_pdf.binary";
+    std::ofstream out2(filename2, std::ios::out|std::ios::binary);
     out2.write((char *) &pdf(0), sizeof(float)*nb_samples);
 
-    filename3 = output + "TEM_"+std::to_string(i)+"_cdf.binary";
-    std::ofstream out3(filename3, std::ios::out|std::ios::binary|std::ios_base::app);
+    filename3 = output + "TEM_"+std::to_string(lambda_idx)+"_cdf.binary";
+    std::ofstream out3(filename3, std::ios::out|std::ios::binary);
     out3.write((char *) &cdf(0), sizeof(float)*nb_samples);
+
+     // update indices */
+     lambda_idx++;
   }
 
   //ProfilerStop();
